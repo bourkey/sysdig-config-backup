@@ -29,6 +29,15 @@ validate_config() {
     echo "  Copy config.sh.example to config.sh and set your token, or export SYSDIG_API_TOKEN." >&2
     exit 1
   fi
+
+  if [[ -n "${SYSDIG_CA_CERT:-}" && ! -f "${SYSDIG_CA_CERT}" ]]; then
+    echo "ERROR: SYSDIG_CA_CERT is set but the file does not exist: ${SYSDIG_CA_CERT}" >&2
+    exit 1
+  fi
+
+  if [[ "${SYSDIG_TLS_INSECURE:-}" == "true" && -n "${SYSDIG_CA_CERT:-}" ]]; then
+    echo "WARNING: SYSDIG_TLS_INSECURE=true and SYSDIG_CA_CERT are both set; --insecure takes precedence and SYSDIG_CA_CERT will have no effect." >&2
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -46,10 +55,18 @@ sysdig_get() {
   local response_file
   response_file="$(mktemp)"
 
+  local tls_opts=()
+  if [[ "${SYSDIG_TLS_INSECURE:-}" == "true" ]]; then
+    tls_opts+=(--insecure)
+  elif [[ -n "${SYSDIG_CA_CERT:-}" ]]; then
+    tls_opts+=(--cacert "${SYSDIG_CA_CERT}")
+  fi
+
   http_code=$(curl --silent --show-error --write-out "%{http_code}" \
     --output "${response_file}" \
     --header "Authorization: Bearer ${SYSDIG_API_TOKEN}" \
     --header "Content-Type: application/json" \
+    "${tls_opts[@]+"${tls_opts[@]}"}" \
     "${url}")
 
   local exit_code=$?

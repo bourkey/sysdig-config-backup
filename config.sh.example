@@ -18,3 +18,12 @@ export SYSDIG_API_TOKEN="your-api-token-here"
 #   US2: https://us2.app.sysdig.com
 #   AU:  https://app.au1.sysdig.com
 export SYSDIG_API_URL="https://secure.sysdig.com"
+
+# Optional: Disable TLS certificate verification (on-prem with self-signed certs)
+# WARNING: This disables all certificate validation and exposes connections to
+# man-in-the-middle attacks. Use SYSDIG_CA_CERT instead where possible.
+# export SYSDIG_TLS_INSECURE="true"
+
+# Optional: Custom CA certificate bundle (on-prem with a private CA)
+# Set to the path of a PEM file containing your CA certificate(s).
+# export SYSDIG_CA_CERT="/etc/ssl/certs/my-ca.pem"
