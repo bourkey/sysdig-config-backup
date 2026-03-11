@@ -8,6 +8,9 @@ public-api-spec.yaml
 # Backup count tracking (temp files written during runs)
 backups/.counts/
 
+# Generated Terraform output (opt-in to commit by removing this line)
+terraform/
+
 # macOS
 .DS_Store
 

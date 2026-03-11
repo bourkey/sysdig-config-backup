@@ -137,8 +137,55 @@ Each file is the raw JSON object as returned by the Sysdig Secure API for that r
 
 Each exporter is independent — a failure in one will be logged but will not prevent others from running.
 
+## Terraform Generation
+
+`generate-terraform.sh` reads the backed-up JSON files and generates Terraform HCL using the [`sysdiglabs/sysdig`](https://registry.terraform.io/providers/sysdiglabs/sysdig/latest) provider.
+
+### Output files
+
+| File | Contents |
+|---|---|
+| `terraform/provider.tf` | Provider block + API token variable (written once, never overwritten) |
+| `terraform/policies.tf` | `sysdig_secure_policy` resources |
+| `terraform/notification-channels.tf` | `sysdig_secure_notification_channel_*` resources |
+| `terraform/rules.tf` | `sysdig_secure_rule_falco` resources |
+| `terraform/teams.tf` | `sysdig_secure_team` resources |
+| `terraform/alerts.tf` | `sysdig_monitor_alert_v2` resources |
+| `terraform/main.tf` | Combined file containing all of the above |
+
+The `terraform/` directory is gitignored by default. Remove that line from `.gitignore` to version the generated HCL alongside your backups.
+
+### Running standalone
+
+```bash
+./backup.sh --dry-run          # ensure backups/ is populated first
+./generate-terraform.sh        # generates terraform/*.tf
+```
+
+### Running as part of backup
+
+```bash
+./backup.sh --terraform        # backup + generate HCL + commit
+```
+
+Terraform generation failure is non-fatal: the backup commit will still be created even if `generate-terraform.sh` exits non-zero.
+
+### Using the generated Terraform
+
+```bash
+cd terraform
+terraform init
+terraform validate     # check for syntax errors
+terraform plan         # review what would be created
+```
+
+> **Important — credential fields**: Notification channel resources (PagerDuty, VictorOps, OpsGenie) contain sensitive credential values from the backup JSON. These are emitted as `# ... REPLACE_WITH_SECRET` comments in the generated HCL. Replace them with `var.*` references or remove them before running `terraform apply`.
+
+> **Note — Terraform state**: `generate-terraform.sh` produces HCL but does not configure remote state or import existing resources. After reviewing the plan, run `terraform import` for each resource to bring existing Sysdig resources under Terraform management.
+
 ## Flags
 
 | Flag | Description |
 |---|---|
 | `--dry-run` | Run all exports and write files, but skip the git commit |
+| `--terraform` | Run all exports, generate Terraform HCL, then commit |

@@ -2,8 +2,9 @@
 # backup.sh — Sysdig Secure configuration backup runner
 #
 # Usage:
-#   ./backup.sh            Run full backup and commit changes
-#   ./backup.sh --dry-run  Run backup but skip git commit
+#   ./backup.sh              Run full backup and commit changes
+#   ./backup.sh --dry-run    Run backup but skip git commit
+#   ./backup.sh --terraform  Run backup, generate Terraform HCL, then commit
 
 set -uo pipefail
 
@@ -16,9 +17,11 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # ---------------------------------------------------------------------------
 
 DRY_RUN=false
+RUN_TERRAFORM=false
 for arg in "$@"; do
   case "${arg}" in
-    --dry-run) DRY_RUN=true ;;
+    --dry-run)   DRY_RUN=true ;;
+    --terraform) RUN_TERRAFORM=true ;;
     *) echo "Unknown argument: ${arg}" >&2; exit 1 ;;
   esac
 done
@@ -79,6 +82,19 @@ fi
 
 if [[ ${#FAILED_EXPORTERS[@]} -gt 0 ]]; then
   echo "WARNING: ${#FAILED_EXPORTERS[@]}/${TOTAL_EXPORTERS} exporters failed: ${FAILED_EXPORTERS[*]}" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Terraform generation (opt-in, non-fatal)
+# ---------------------------------------------------------------------------
+
+if [[ "${RUN_TERRAFORM}" == true ]]; then
+  echo "Running Terraform generation..."
+  if bash "${SCRIPT_DIR}/generate-terraform.sh"; then
+    echo "Terraform generation succeeded."
+  else
+    echo "WARNING: Terraform generation failed — backup will still be committed." >&2
+  fi
 fi
 
 # ---------------------------------------------------------------------------
