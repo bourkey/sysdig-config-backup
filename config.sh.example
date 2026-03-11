@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Sysdig Config Backup — Configuration
+#
+# Copy this file to config.sh and fill in your values.
+# config.sh is gitignored to prevent token leakage.
+#
+# Alternatively, export these variables in your environment
+# or cron environment directly.
+
+# Required: Your Sysdig Secure API token
+# Generate one at: Sysdig Secure → Profile → User Settings → Sysdig API token
+export SYSDIG_API_TOKEN="your-api-token-here"
+
+# Optional: Sysdig Secure API base URL (default: US region)
+# Common regions:
+#   US:  https://secure.sysdig.com
+#   EU:  https://eu1.app.sysdig.com
+#   US2: https://us2.app.sysdig.com
+#   AU:  https://app.au1.sysdig.com
+export SYSDIG_API_URL="https://secure.sysdig.com"

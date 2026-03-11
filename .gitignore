@@ -1,0 +1,17 @@
+# Local configuration containing API token — never commit this
+config.sh
+
+# API Specs - Not for public disclosure
+openapi.json
+public-api-spec.yaml
+
+# Backup count tracking (temp files written during runs)
+backups/.counts/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+*.swp
+*.swo
