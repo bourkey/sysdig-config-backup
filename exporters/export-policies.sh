@@ -9,13 +9,13 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 export_policies() {
   local out_dir="${BACKUP_DIR}/policies"
-  # API returns a direct JSON array (not wrapped in a field)
+  # API returns a direct JSON array (not wrapped in a field); paginated
   local api_path="/api/v2/policies"
 
   echo "Exporting policies ..."
 
   local response
-  if ! response=$(sysdig_get "${api_path}"); then
+  if ! response=$(sysdig_get_paged "${api_path}"); then
     echo "ERROR: Failed to fetch policies" >&2
     return 1
   fi

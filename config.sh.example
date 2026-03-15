@@ -27,3 +27,11 @@ export SYSDIG_API_URL="https://secure.sysdig.com"
 # Optional: Custom CA certificate bundle (on-prem with a private CA)
 # Set to the path of a PEM file containing your CA certificate(s).
 # export SYSDIG_CA_CERT="/etc/ssl/certs/my-ca.pem"
+
+# Optional: Number of resources fetched per API request (default: 100)
+# Increase for faster exports on large tenants (check your API plan's max limit).
+# export SYSDIG_PAGE_SIZE="100"
+
+# Optional: Max Terraform resources per output file before splitting (default: 200)
+# Set to 0 to disable splitting and always write a single file per resource type.
+# export SYSDIG_TF_CHUNK_SIZE="200"

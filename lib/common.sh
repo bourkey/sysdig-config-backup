@@ -17,10 +17,11 @@ load_config() {
 
   # Apply defaults
   SYSDIG_API_URL="${SYSDIG_API_URL:-https://secure.sysdig.com}"
+  SYSDIG_PAGE_SIZE="${SYSDIG_PAGE_SIZE:-100}"
   BACKUP_DIR="${script_dir}/backups"
 
   # Export so subprocess exporters inherit these values
-  export SYSDIG_API_TOKEN SYSDIG_API_URL BACKUP_DIR
+  export SYSDIG_API_TOKEN SYSDIG_API_URL SYSDIG_PAGE_SIZE BACKUP_DIR
 }
 
 validate_config() {
@@ -91,6 +92,58 @@ sysdig_get() {
 
   cat "${response_file}"
   rm -f "${response_file}"
+}
+
+# sysdig_get_paged <path> [envelope_field]
+# Fetches all pages of a paginated API endpoint using limit/offset parameters.
+# envelope_field: when set, extracts .<field> from each page response before
+#   accumulating (e.g. "alerts" for endpoints that return { "alerts": [...] }).
+#   When empty or omitted, the response body is treated as a direct JSON array.
+# Prints a single merged JSON array to stdout.
+# Returns non-zero if any page request fails.
+sysdig_get_paged() {
+  local path="$1"
+  local envelope="${2:-}"
+  local page_size="${SYSDIG_PAGE_SIZE:-100}"
+  local offset=0
+  local accumulator page_file merged_file
+  accumulator="$(mktemp)"
+  page_file="$(mktemp)"
+  merged_file="$(mktemp)"
+  echo "[]" > "${accumulator}"
+
+  while true; do
+    local page_response page_items page_count
+    if ! page_response=$(sysdig_get "${path}?limit=${page_size}&offset=${offset}"); then
+      rm -f "${accumulator}" "${page_file}" "${merged_file}"
+      return 1
+    fi
+
+    if [[ -n "${envelope}" ]]; then
+      page_items=$(echo "${page_response}" | jq -c ".${envelope} // []")
+    else
+      page_items="${page_response}"
+    fi
+
+    page_count=$(echo "${page_items}" | jq 'length')
+
+    if [[ "${page_count}" -eq 0 ]]; then
+      break
+    fi
+
+    echo "${page_items}" > "${page_file}"
+    jq -s 'add' "${accumulator}" "${page_file}" > "${merged_file}"
+    mv "${merged_file}" "${accumulator}"
+
+    if [[ "${page_count}" -lt "${page_size}" ]]; then
+      break
+    fi
+
+    (( offset += page_size )) || true
+  done
+
+  cat "${accumulator}"
+  rm -f "${accumulator}" "${page_file}"
 }
 
 # ---------------------------------------------------------------------------

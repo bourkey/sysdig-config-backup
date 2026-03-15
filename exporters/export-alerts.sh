@@ -14,14 +14,14 @@ export_alerts() {
   echo "Exporting alerts ..."
 
   local response
-  if ! response=$(sysdig_get "${api_path}"); then
+  # API returns: { "alerts": [...] }; paginated — envelope "alerts" is unwrapped by sysdig_get_paged
+  if ! response=$(sysdig_get_paged "${api_path}" "alerts"); then
     echo "ERROR: Failed to fetch alerts" >&2
     return 1
   fi
 
-  # API returns: { "alerts": [...] }
   local count
-  count=$(echo "${response}" | jq '.alerts | length')
+  count=$(echo "${response}" | jq 'length')
 
   if [[ "${count}" -eq 0 ]]; then
     echo "No alerts found."
@@ -31,7 +31,7 @@ export_alerts() {
 
   mkdir -p "${out_dir}"
 
-  echo "${response}" | jq -c '.alerts[]' | while IFS= read -r alert; do
+  echo "${response}" | jq -c '.[]' | while IFS= read -r alert; do
     local name id
     name=$(echo "${alert}" | jq -r '.name // ""')
     id=$(echo "${alert}" | jq -r '.id // "unknown"')
