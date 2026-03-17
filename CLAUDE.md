@@ -31,6 +31,7 @@ All configuration is via environment variables or a sourced `config.sh` file (gi
 |---|---|---|
 | `SYSDIG_API_TOKEN` | Yes | — |
 | `SYSDIG_API_URL` | No | `https://secure.sysdig.com` |
+| `SYSDIG_BACKUP_PASSPHRASE` | No | — (uses REDACTED fallback) |
 
 ## Running
 
@@ -39,6 +40,8 @@ All configuration is via environment variables or a sourced `config.sh` file (gi
 ./backup.sh --dry-run       # Export files only, no git commit
 ./backup.sh --terraform     # Full backup + generate Terraform HCL + git commit
 ./generate-terraform.sh     # Generate Terraform HCL from existing backups (standalone)
+./restore.sh                # Decrypt credential fields from backups/ → restore-output/
+./restore.sh --backup-dir backups/ --output-dir /tmp/restore   # Custom paths
 ```
 
 ## API Notes

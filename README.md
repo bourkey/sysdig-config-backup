@@ -54,6 +54,7 @@ Automated backup of Sysdig Secure configuration to git. Exports policies, alerts
 |---|---|---|---|
 | `SYSDIG_API_TOKEN` | Yes | — | Sysdig Secure API token |
 | `SYSDIG_API_URL` | No | `https://secure.sysdig.com` | API base URL for your region |
+| `SYSDIG_BACKUP_PASSPHRASE` | No | — | Passphrase for encrypting credential fields in backup JSON (see [Credential Encryption](#credential-encryption)) |
 
 ### Sysdig Secure regions
 
@@ -182,6 +183,33 @@ terraform plan         # review what would be created
 > **Important — credential fields**: Notification channel resources (PagerDuty, VictorOps, OpsGenie) contain sensitive credential values from the backup JSON. These are emitted as `# ... REPLACE_WITH_SECRET` comments in the generated HCL. Replace them with `var.*` references or remove them before running `terraform apply`.
 
 > **Note — Terraform state**: `generate-terraform.sh` produces HCL but does not configure remote state or import existing resources. After reviewing the plan, run `terraform import` for each resource to bring existing Sysdig resources under Terraform management.
+
+## Credential Encryption
+
+Notification channels and other resources may contain live credentials (service keys, API tokens, webhook URLs). By default, if `SYSDIG_BACKUP_PASSPHRASE` is not set, these fields are replaced with `"REDACTED"` before committing — the backup is safe to store but cannot be used to fully restore.
+
+To enable encrypted backups that support restore, set a passphrase:
+
+```bash
+export SYSDIG_BACKUP_PASSPHRASE="your-strong-passphrase"
+./backup.sh
+```
+
+Credential fields are encrypted in-place using AES-256-CBC and stored as `enc:v1:<base64ciphertext>` in the JSON files. The structure of the backup is preserved; only the credential values are protected.
+
+> **Important:** Store your passphrase in a password manager or secrets vault. If it is lost, the encrypted credential fields in your backups cannot be recovered.
+
+### Restoring credentials
+
+To decrypt a backup into plaintext JSON for use in a restore workflow:
+
+```bash
+export SYSDIG_BACKUP_PASSPHRASE="your-strong-passphrase"
+./restore.sh                                 # decrypts backups/ → restore-output/
+./restore.sh --backup-dir backups/ --output-dir /tmp/sysdig-restore
+```
+
+Source files in `backups/` are never modified. Decrypted JSON is written to the output directory, mirroring the original directory structure.
 
 ## Flags
 

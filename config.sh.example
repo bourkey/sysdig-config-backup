@@ -35,3 +35,15 @@ export SYSDIG_API_URL="https://secure.sysdig.com"
 # Optional: Max Terraform resources per output file before splitting (default: 200)
 # Set to 0 to disable splitting and always write a single file per resource type.
 # export SYSDIG_TF_CHUNK_SIZE="200"
+
+# Optional: Passphrase for encrypting credential fields in backup JSON files.
+# When set, known credential fields (service_key, api_key, token, password, etc.)
+# are encrypted with AES-256-CBC before being committed to git. Encrypted values
+# are stored inline as enc:v1:<base64ciphertext> and can be decrypted with restore.sh.
+#
+# If unset, credential fields are replaced with "REDACTED" — the backup will be
+# committed safely, but it cannot be used to fully restore notification channels.
+#
+# WARNING: Losing this passphrase makes encrypted backup fields unrecoverable.
+# Store it in a password manager or secrets vault, not alongside this file.
+# export SYSDIG_BACKUP_PASSPHRASE="choose-a-strong-passphrase"

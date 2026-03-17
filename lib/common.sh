@@ -229,6 +229,126 @@ record_export_count() {
   echo "${count}" > "${counts_dir}/${resource_type}"
 }
 
+# ---------------------------------------------------------------------------
+# Credential encryption / decryption
+# ---------------------------------------------------------------------------
+
+# CREDENTIAL_FIELDS — pipe-separated list of JSON key names to encrypt/redact.
+CREDENTIAL_FIELDS="service_key|apiKey|api_key|routingKey|routing_key|password|token|webhookUrl|webhook_url"
+
+# encrypt_value <plaintext>
+# Encrypts a plaintext string with AES-256-CBC using SYSDIG_BACKUP_PASSPHRASE.
+# Prints enc:v1:<base64ciphertext> to stdout.
+# Returns non-zero if encryption fails.
+encrypt_value() {
+  local plaintext="$1"
+  local encrypted
+  encrypted=$(printf '%s' "${plaintext}" \
+    | openssl enc -aes-256-cbc -pbkdf2 -pass env:SYSDIG_BACKUP_PASSPHRASE 2>/dev/null \
+    | openssl base64 -A 2>/dev/null)
+  if [[ $? -ne 0 || -z "${encrypted}" ]]; then
+    return 1
+  fi
+  printf 'enc:v1:%s' "${encrypted}"
+}
+
+# decrypt_value <enc_string>
+# Decrypts an enc:v1:<base64ciphertext> string produced by encrypt_value.
+# Prints the plaintext to stdout.
+# Passes non-encrypted strings through unchanged.
+# Returns non-zero if decryption fails.
+decrypt_value() {
+  local enc_string="$1"
+  if [[ "${enc_string}" != enc:v1:* ]]; then
+    printf '%s' "${enc_string}"
+    return 0
+  fi
+  local b64="${enc_string#enc:v1:}"
+  printf '%s\n' "${b64}" \
+    | openssl base64 -d 2>/dev/null \
+    | openssl enc -d -aes-256-cbc -pbkdf2 -pass env:SYSDIG_BACKUP_PASSPHRASE 2>/dev/null
+}
+
+# encrypt_credentials <file>
+# Encrypts all known credential fields in a JSON file in-place.
+# If SYSDIG_BACKUP_PASSPHRASE is unset, replaces values with "REDACTED" and warns.
+# Skips already-encrypted (enc:v1:) and already-redacted values.
+# Non-fatal: logs a warning and returns 0 if the file cannot be processed.
+encrypt_credentials() {
+  local file="$1"
+
+  if ! jq empty "${file}" 2>/dev/null; then
+    echo "WARNING: Skipping malformed JSON, cannot encrypt credentials: ${file}" >&2
+    return 0
+  fi
+
+  # Build jq filter for known credential fields
+  local field_pattern="^(${CREDENTIAL_FIELDS})$"
+
+  if [[ -z "${SYSDIG_BACKUP_PASSPHRASE:-}" ]]; then
+    echo "WARNING: SYSDIG_BACKUP_PASSPHRASE is not set — credential fields will be replaced with REDACTED. Backups will not be restorable without a passphrase." >&2
+    local tmp
+    tmp="$(mktemp)"
+    jq --arg pat "${field_pattern}" \
+      'walk(if type == "object" then
+        with_entries(
+          if (.key | test($pat)) and (.value | type == "string") and (.value != "REDACTED") and (.value | startswith("enc:v1:") | not)
+          then .value = "REDACTED"
+          else .
+          end
+        )
+       else . end)' "${file}" > "${tmp}" && mv "${tmp}" "${file}"
+    return 0
+  fi
+
+  # Get all (path, value) pairs for credential string fields not already encrypted
+  local pairs
+  pairs=$(jq -c --arg pat "${field_pattern}" \
+    '[paths as $p |
+       select(
+         ($p[-1] | type == "string") and
+         ($p[-1] | test($pat)) and
+         (getpath($p) | type == "string") and
+         (getpath($p) | startswith("enc:v1:") | not) and
+         (getpath($p) != "REDACTED")
+       ) |
+       [$p, getpath($p)]]
+     | .[]' "${file}" 2>/dev/null)
+
+  if [[ -z "${pairs}" ]]; then
+    return 0
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  cp "${file}" "${tmp}"
+
+  local failed=false
+  while IFS= read -r pair; do
+    [[ -z "${pair}" ]] && continue
+    local path_json value encrypted
+    path_json=$(printf '%s' "${pair}" | jq -c '.[0]')
+    value=$(printf '%s' "${pair}" | jq -r '.[1]')
+    encrypted=$(encrypt_value "${value}")
+    if [[ $? -ne 0 ]]; then
+      echo "WARNING: Failed to encrypt a credential field in ${file} — skipping field." >&2
+      failed=true
+      continue
+    fi
+    local updated
+    updated="$(mktemp)"
+    jq --argjson p "${path_json}" --arg v "${encrypted}" 'setpath($p; $v)' "${tmp}" > "${updated}" \
+      && mv "${updated}" "${tmp}"
+  done <<< "${pairs}"
+
+  mv "${tmp}" "${file}"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Metadata
+# ---------------------------------------------------------------------------
+
 # write_metadata
 # Reads count files written by exporters and produces backups/metadata.json.
 write_metadata() {

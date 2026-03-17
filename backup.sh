@@ -85,6 +85,15 @@ if [[ ${#FAILED_EXPORTERS[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Encrypt credentials in all backup JSON files (runs in all modes)
+# ---------------------------------------------------------------------------
+
+echo "Encrypting credential fields in backup JSON files..."
+while IFS= read -r -d '' json_file; do
+  encrypt_credentials "${json_file}"
+done < <(find "${BACKUP_DIR}" -name "*.json" -not -path "${BACKUP_DIR}/.counts/*" -print0)
+
+# ---------------------------------------------------------------------------
 # Terraform generation (opt-in, non-fatal)
 # ---------------------------------------------------------------------------
 
